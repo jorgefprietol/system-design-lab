@@ -59,7 +59,7 @@ try {
   for (const role of ['app','admin']) {
     const volume = config.volumes[`commerce-${role}-secrets`].name;
     await execute(['volume','create',volume]);
-    const helper = (await execute(['create','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--volume',`${volume}:/secrets`,'--entrypoint','sh',config.services['commerce-db'].image,'-c',`test -f /secrets/${role}-password && test "$(wc -c < /secrets/${role}-password)" -eq 64 && chmod 0444 /secrets/${role}-password`])).trim();
+    const helper = (await execute(['create','--user','0:0','--network','none','--read-only','--cap-drop','ALL','--cap-add','CHOWN','--security-opt','no-new-privileges:true','--volume',`${volume}:/secrets`,'--entrypoint','sh',config.services['commerce-db'].image,'-c',`test -f /secrets/${role}-password && chown 0:0 /secrets/${role}-password && chmod 0444 /secrets/${role}-password && test "$(wc -c < /secrets/${role}-password)" -eq 64`])).trim();
     assert.match(helper,/^[a-f0-9]{64}$/);
     try {
       await execute(['cp',resolve(secretDir,`${role}-password`),`${helper}:/secrets/${role}-password`]);
