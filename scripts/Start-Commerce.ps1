@@ -14,8 +14,9 @@ New-Item -ItemType Directory -Force -Path $taskSecrets | Out-Null
 foreach ($taskFile in @('app-password','admin-password')) {
     $taskPath = Join-Path $taskSecrets $taskFile
     if (!(Test-Path -LiteralPath $taskPath)) {
-        & docker volume inspect atlas-commerce-data *> $null
-        if ($LASTEXITCODE -eq 0) { throw 'Existing commerce data requires the original secret files; restore them before starting.' }
+        $taskExistingDatabase = $false
+        try { Invoke-TaskDocker @('volume','inspect','atlas-commerce-data') | Out-Null; $taskExistingDatabase = $true } catch {}
+        if ($taskExistingDatabase) { throw 'Existing commerce data requires the original secret files; restore them before starting.' }
         $taskBytes = New-Object byte[] 32
         $taskRandom = [Security.Cryptography.RandomNumberGenerator]::Create()
         try { $taskRandom.GetBytes($taskBytes) } finally { $taskRandom.Dispose() }
