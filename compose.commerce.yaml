@@ -3,10 +3,10 @@ services:
   csharp:
     environment:
       LAB_COMMERCE_HOST: commerce-db
-      LAB_COMMERCE_PASSWORD_FILE: /run/secrets/commerce_app_password
+      LAB_COMMERCE_PASSWORD_FILE: /run/secrets/app/app-password
       LAB_INSTANCE: csharp-1
       LAB_COMMERCE_PEER_URL: http://127.0.0.1:${JAVA_PORT:-5082}/commerce
-    secrets: [commerce_app_password]
+    volumes: ["commerce-app-secrets:/run/secrets/app:ro"]
     depends_on:
       commerce-db: {condition: service_healthy}
     healthcheck:
@@ -15,10 +15,10 @@ services:
     environment:
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError
       LAB_COMMERCE_HOST: commerce-db
-      LAB_COMMERCE_PASSWORD_FILE: /run/secrets/commerce_app_password
+      LAB_COMMERCE_PASSWORD_FILE: /run/secrets/app/app-password
       LAB_INSTANCE: java-2
       LAB_COMMERCE_PEER_URL: http://127.0.0.1:${CSHARP_PORT:-5081}/commerce
-    secrets: [commerce_app_password]
+    volumes: ["commerce-app-secrets:/run/secrets/app:ro"]
     depends_on:
       commerce-db: {condition: service_healthy}
     healthcheck:
@@ -33,11 +33,11 @@ services:
     environment:
       POSTGRES_DB: atlas_commerce
       POSTGRES_USER: atlas_admin
-      POSTGRES_PASSWORD_FILE: /run/secrets/commerce_admin_password
-    secrets: [commerce_admin_password, commerce_app_password]
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin/admin-password
     volumes:
       - commerce-data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - commerce-admin-secrets:/run/secrets/admin:ro
+      - commerce-app-secrets:/run/secrets/app:ro
     security_opt: [no-new-privileges:true]
     mem_limit: 256m
     cpus: 0.5
@@ -52,8 +52,5 @@ services:
       options: {max-size: "10m", max-file: "3"}
 volumes:
   commerce-data: {name: atlas-commerce-data}
-secrets:
-  commerce_app_password:
-    file: ${ATLAS_SECRET_DIR:-./.local/commerce-secrets}/app-password
-  commerce_admin_password:
-    file: ${ATLAS_SECRET_DIR:-./.local/commerce-secrets}/admin-password
+  commerce-app-secrets: {name: atlas-commerce-app-secrets}
+  commerce-admin-secrets: {name: atlas-commerce-admin-secrets}
