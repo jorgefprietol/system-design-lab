@@ -27,15 +27,21 @@ jobs:
       - name: Validate frontend and Compose
         run: |
           node --check web/app.js
+          node --check web/commerce.js
+          node --check tests/horizontal.mjs
           docker compose config --quiet
       - name: Build pinned runtime images
         env:
           LAB_REVISION: ${{ github.sha }}
-        run: docker compose build
+        run: |
+          docker compose build
+          docker build --file database/Dockerfile --build-arg REVISION="$LAB_REVISION" --tag atlas-postgres:local .
       - name: Run shared contract against containers
         env:
           LAB_TEST_MODE: container
         run: node tests/contract.mjs
+      - name: Verify two-instance commerce with shared PostgreSQL
+        run: node tests/horizontal.mjs
       - name: Generate SBOM and enforce vulnerability gate
         run: |
           mkdir -p release
@@ -44,6 +50,10 @@ jobs:
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache/trivy "$TRIVY_IMAGE" image --timeout 10m --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "atlas-$runtime:local"
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/release:/reports" -v trivy-cache:/root/.cache/trivy "$TRIVY_IMAGE" image --timeout 10m --format cyclonedx --output "/reports/$runtime-sbom.cdx.json" "atlas-$runtime:local"
           done
+          postgres_image=$(cat release/postgres-image.txt)
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/release:/reports" -v trivy-cache:/root/.cache/trivy "$TRIVY_IMAGE" image --timeout 10m --scanners vuln --format json --output /reports/postgres-vulnerabilities.json "$postgres_image"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache/trivy "$TRIVY_IMAGE" image --timeout 10m --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$postgres_image"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/release:/reports" -v trivy-cache:/root/.cache/trivy "$TRIVY_IMAGE" image --timeout 10m --format cyclonedx --output /reports/postgres-sbom.cdx.json "$postgres_image"
       - name: Package tested images by full commit SHA
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: node scripts/package-release.mjs
@@ -84,7 +94,7 @@ jobs:
       - name: Attest container archives
         uses: actions/attest-build-provenance@8beda2b7ed98355c0e97c0a63bec38ae472e66c4 # v4
         with:
-          subject-path: release/*.tar.gz
+          subject-path: release/*
       - name: Publish commit release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -17,6 +17,8 @@ flowchart LR
 
 Las versiones son alternativas autónomas. Cada proceso utiliza su propio directorio de datos. El contrato y el frontend se comparten para facilitar comparaciones; el código de dominio no se comparte entre lenguajes.
 
+La tienda horizontal `/commerce` añade un caso con **dos APIs y PostgreSQL compartido**, separado del historial JSON. Los pedidos y el stock de `/api/commerce/*` se resuelven en transacciones de la base; los otros endpoints mantienen el diseño anterior. [Contrato, decisiones y pruebas de este caso](horizontal-commerce.md).
+
 `Lab` concentra las invariantes del experimento; `Program.cs` y `Main.java` adaptan HTTP. Un bloqueo serializa comandos, consultas y worker, de modo que el stock, la asignación de conductor y las versiones no quedan expuestos a actualizaciones simultáneas dentro del nodo. Cada evento tiene `sequence`, `time`, `type` y `data`. Se escribe primero un historial nuevo, se fuerza el buffer a disco y se reemplaza el archivo antes de aplicar la proyección. El historial autoritativo permite reconstrucción al reiniciar. Una secuencia inválida o JSON corrupto impide arrancar.
 
 El lock de escritor evita abrir el directorio dos veces con la misma implementación. No usar un directorio compartido entre C# y Java: no existe coordinación de escritura entre plataformas. El esquema de eventos es equivalente pero no hay migrador de versiones ni soporte de upgrades del formato.
@@ -28,8 +30,8 @@ La atomicidad del reemplazo y la durabilidad dependen del sistema de archivos. N
 | Atributo | Evidencia local | Límite / evolución |
 | --- | --- | --- |
 | Rendimiento | Caché de redirecciones, benchmark de lecturas con percentiles | Historial y estado crecen sin paginación; escrituras O(n) |
-| Escalabilidad | Worker desacoplado de la petición, contratos comunes | Bloqueo global, un escritor, memoria de un nodo |
-| Fiabilidad | Replay al reiniciar, jobs pendientes recuperables, idempotencia | Sin réplicas, backup automatizado, failover ni quorum |
+| Escalabilidad | Tienda con dos APIs y persistencia PostgreSQL compartida; worker y contratos comunes | Los experimentos de eventos siguen con un escritor; DB sin réplicas |
+| Fiabilidad | Replay, jobs recuperables, idempotencia; backups antes del despliegue y rollback de imágenes | Sin failover del primario ni quorum; recuperación de datos manual |
 | Mantenibilidad | Adaptadores separados del motor, suite compartida, documentación | Separar módulos por contexto al aumentar reglas |
 
 ## Diseños a gran escala

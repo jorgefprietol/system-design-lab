@@ -15,7 +15,7 @@ COPY --from=build /out/ ./
 COPY web/ ./web/
 ARG REVISION=development
 LABEL org.opencontainers.image.source="https://github.com/jorgefprietol/system-design-lab" \
-      org.opencontainers.image.revision="${REVISION}"
+      org.opencontainers.image.revision="${REVISION}" org.atlas.commerce.schema="1"
 ENV LAB_ROOT=/app LAB_DATA=/data LAB_HOST=0.0.0.0 LAB_PORT=8080 LAB_REVISION=${REVISION} DOTNET_EnableDiagnostics=0
 USER 10001:10001
 EXPOSE 8080
