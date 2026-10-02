@@ -1,0 +1,12 @@
+**/bin
+**/obj
+**/target
+**/node_modules
+.git
+.github
+data
+tests/results
+docs/preview.jpg
+*.log
+.env
+*.zip

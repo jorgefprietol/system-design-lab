@@ -1,0 +1,15 @@
+import {performance} from 'node:perf_hooks';
+import {writeFile} from 'node:fs/promises';
+const base=process.argv[2]||'http://127.0.0.1:5081';
+const count=Number(process.argv[3]||500),concurrency=Number(process.argv[4]||10);
+if(!Number.isInteger(count)||count<1||count>100000||!Number.isInteger(concurrency)||concurrency<1||concurrency>1000)throw new Error('Uso: node scripts/benchmark.mjs URL [peticiones 1..100000] [concurrencia 1..1000]');
+const samples=[];let next=0,errors=0;
+await fetch(base+'/health').then(r=>{if(!r.ok)throw new Error('Service unavailable');});
+const started=performance.now();
+await Promise.all(Array.from({length:concurrency},async()=>{while(next++<count){const start=performance.now();try{const r=await fetch(base+'/api/state');await r.arrayBuffer();if(!r.ok)errors++;}catch{errors++;}samples.push(performance.now()-start);}}));
+const elapsedMs=performance.now()-started;samples.sort((a,b)=>a-b);
+const percentile=p=>samples[Math.min(samples.length-1,Math.ceil(samples.length*p)-1)];
+const result={date:new Date().toISOString(),base,endpoint:'/api/state',count,concurrency,errors,elapsedMs,requestsPerSecond:count/(elapsedMs/1000),p50Ms:percentile(.5),p95Ms:percentile(.95),p99Ms:percentile(.99),note:'Medición local de lecturas sobre el estado actual. No extrapolar a carga distribuida ni escrituras.'};
+console.log(JSON.stringify(result,null,2));
+if(process.argv[5])await writeFile(process.argv[5],JSON.stringify(result,null,2));
+if(errors)process.exitCode=1;

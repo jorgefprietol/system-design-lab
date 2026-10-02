@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/target/
+data/
+tests/results/
+*.log
+.env
+*.zip
+*.tar
+*.tar.gz
+release/
+.runner
+.credentials*
+_diag/
+_work/

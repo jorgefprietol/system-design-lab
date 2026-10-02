@@ -1,0 +1,38 @@
+name: atlas
+x-runtime: &runtime
+  restart: unless-stopped
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  mem_limit: 512m
+  cpus: 1.0
+  pids_limit: 128
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+services:
+  csharp:
+    <<: *runtime
+    image: ${CSHARP_IMAGE:-atlas-csharp:local}
+    build:
+      context: .
+      dockerfile: csharp/Dockerfile
+      args: {REVISION: "${LAB_REVISION:-development}"}
+    ports: ["127.0.0.1:${CSHARP_PORT:-5081}:8080"]
+    volumes: ["csharp-data:/data"]
+  java:
+    <<: *runtime
+    image: ${JAVA_IMAGE:-atlas-java:local}
+    build:
+      context: .
+      dockerfile: java/Dockerfile
+      args: {REVISION: "${LAB_REVISION:-development}"}
+    ports: ["127.0.0.1:${JAVA_PORT:-5082}:8080"]
+    volumes: ["java-data:/data"]
+    environment: {JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"}
+volumes:
+  csharp-data: {name: atlas-csharp-data}
+  java-data: {name: atlas-java-data}
