@@ -29,10 +29,15 @@ Push-Location $taskRoot
 try {
     if (!$NoBuild) { docker compose --file compose.yaml --file compose.commerce.yaml build; if ($LASTEXITCODE -ne 0) { throw 'Build failed' } }
     $taskImage = if ($env:COMMERCE_DB_IMAGE) { $env:COMMERCE_DB_IMAGE } else { 'atlas-postgres:local' }
+    $taskHasher = [Security.Cryptography.SHA256]::Create()
+    try {
+        $taskSqlHash = ([BitConverter]::ToString($taskHasher.ComputeHash([IO.File]::ReadAllBytes((Join-Path $taskRoot 'database\init\commerce.sql.in'))))).Replace('-','').ToLowerInvariant()
+        $taskInitHash = ([BitConverter]::ToString($taskHasher.ComputeHash([IO.File]::ReadAllBytes((Join-Path $taskRoot 'database\init\01-commerce.sh'))))).Replace('-','').ToLowerInvariant()
+    } finally { $taskHasher.Dispose() }
     foreach ($taskRole in @('app','admin')) {
         $taskVolume = "atlas-commerce-$taskRole-secrets"
         Invoke-TaskDocker @('volume','create',$taskVolume) | Out-Null
-        $taskCheck = "test -f /secrets/$taskRole-password && test `$(wc -c < /secrets/$taskRole-password) -eq 64 && chmod 0444 /secrets/$taskRole-password"
+        $taskCheck = "test -f /secrets/$taskRole-password && test `$(wc -c < /secrets/$taskRole-password) -eq 64 && chmod 0444 /secrets/$taskRole-password && test `$(sha256sum /docker-entrypoint-initdb.d/commerce.sql.in | cut -d ' ' -f 1) = '$taskSqlHash' && test `$(sha256sum /docker-entrypoint-initdb.d/01-commerce.sh | cut -d ' ' -f 1) = '$taskInitHash'"
         $taskHelper = Invoke-TaskDocker @('create','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--volume',"${taskVolume}:/secrets",'--entrypoint','sh',$taskImage,'-c',$taskCheck)
         if ($taskHelper -notmatch '^[a-f0-9]{64}$') { throw 'Invalid secret loader container id' }
         try {
