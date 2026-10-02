@@ -64,6 +64,7 @@ try {
     const a = await request(0,'health'), b = await request(1,'health');
     assert.equal(a.implementation,'csharp'); assert.equal(b.implementation,'java'); assert.notEqual(a.instance,b.instance);
     assert.equal(a.schemaVersion,1); assert.equal(b.schemaVersion,1); assert.equal(a.revision,b.revision);
+    if(process.env.GITHUB_SHA) assert.equal(a.revision,process.env.GITHUB_SHA);
     const expectedBootstrap = createHash('sha256').update(await readFile(resolve(root,'database/init/commerce.sql.in'))).digest('hex');
     assert.equal(a.bootstrapSha256,expectedBootstrap); assert.equal(b.bootstrapSha256,expectedBootstrap);
     postgresUid = (await execute(['exec',databaseContainer,'sh','-c',"awk '/^Uid:/ {print $2}' /proc/1/status"])).trim();

@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
 import {createReadStream,createWriteStream} from 'node:fs';
-import {mkdir,writeFile,unlink,readFile} from 'node:fs/promises';
+import {mkdir,writeFile,unlink,readFile,readdir,copyFile} from 'node:fs/promises';
 import {pipeline} from 'node:stream/promises';
 import {createGzip} from 'node:zlib';
 import {createHash} from 'node:crypto';
@@ -22,6 +22,14 @@ for(const runtime of ['csharp','java','postgres']){
   artifacts.push({runtime,file,sha256:hash.digest('hex'),sourceImageId:meta.Id,imageRef,rootfsSha256:createHash('sha256').update(meta.RootFS.Layers.join('\n')).digest('hex')});
 }
 const commerce={schema:1,image:artifacts.find(x=>x.runtime==='postgres').imageRef,sqlSha256:createHash('sha256').update(await readFile('database/init/commerce.sql.in')).digest('hex'),initializerSha256:createHash('sha256').update(await readFile('database/init/01-commerce.sh')).digest('hex')};
+const testDirectories=(await readdir('tests/results',{withFileTypes:true})).filter(x=>x.isDirectory()).map(x=>x.name).sort();
+for(const [file,horizontal,expected] of [['contract-report.json',false,38],['horizontal-report.json',true,12]]){
+  const selected=testDirectories.filter(x=>horizontal?x.startsWith('horizontal-'):/^\d{4}-/.test(x)).at(-1);
+  if(!selected)throw new Error('Test evidence missing: '+file);
+  const reportPath=resolve('tests/results',selected,'report.json');const report=JSON.parse(await readFile(reportPath,'utf8'));
+  if(report.total!==expected||(horizontal&&(!report.success||report.sourceSha!==sha)))throw new Error('Invalid test evidence: '+file);
+  await copyFile(reportPath,resolve(dir,file));
+}
 await writeFile(resolve(dir,'manifest.json'),JSON.stringify({schema:2,source,sourceSha:sha,platform:'linux/amd64',artifacts,commerce},null,2));
 await writeFile(resolve(dir,'SHA256SUMS'),artifacts.map(x=>`${x.sha256}  ${x.file}`).join('\n')+'\n');
-await writeFile(resolve(dir,'notes.md'),`Validated container release for commit ${sha}.\n\nBoth implementations passed the shared HTTP contract suite. Runtime images run without root, include healthchecks, and retain data in independent Docker volumes. SBOM and vulnerability reports are attached.\n\nDeployments are reconciled from the private operations repository on the local laptop.\n`);
+await writeFile(resolve(dir,'notes.md'),`Validated container release for commit ${sha}.\n\n38 shared HTTP checks and 12 two-instance PostgreSQL commerce scenarios passed, including 30 retries producing one order and 20 buyers producing exactly 5 purchases and 15 rejections. Test reports, SBOM and vulnerability reports are attached and covered by provenance.\n\nThe release contains the exact tested C#, Java and patched PostgreSQL images. API runtimes run without root; PostgreSQL drops to its own server user. Deployment uses immutable local image ids and persistent volumes.\n\nDeployments are reconciled from the private operations repository on the local laptop.\n`);

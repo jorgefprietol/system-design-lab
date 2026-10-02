@@ -46,7 +46,7 @@ El bootstrap SQL es versión 1 y queda registrado con SHA-256 dentro de DB. Las 
 
 `node tests/horizontal.mjs` utiliza imágenes previamente construidas. Crea dos APIs, una DB, puertos, red, volúmenes y claves aislados; elimina únicamente los recursos del proyecto de prueba. Red predeterminada: `10.203.76.0/24`, reservada para esta prueba en la laptop. `ATLAS_TEST_SUBNET` permite otra subred libre.
 
-La suite comprueba 12 escenarios: instancias diferentes con el mismo esquema, interfaz, validación sin cambios, **30 reintentos concurrentes con una sola compra**, payload conflictivo, **20 compradores con 5 aceptados y 15 rechazados**, snapshots iguales, rollback de una compra rechazada, permisos SQL mínimos, continuidad con una API detenida, reinicio de ambas APIs y caída/reinicio de DB con recuperación de estado e idempotencia. Los reportes se generan en `tests/results/horizontal-*` y se conservan como evidencia de CI.
+La suite comprueba 12 escenarios: instancias diferentes con el mismo esquema, interfaz, validación sin cambios, **30 reintentos concurrentes con una sola compra**, payload conflictivo, **20 compradores con 5 aceptados y 15 rechazados**, snapshots iguales, rollback de una compra rechazada, permisos SQL mínimos, continuidad con una API detenida, reinicio de ambas APIs y caída/reinicio de DB con recuperación de estado e idempotencia. Los reportes se generan en `tests/results/horizontal-*`. Cada release publicado conserva `contract-report.json` y `horizontal-report.json` junto a imágenes, SBOM y procedencia.
 
 ## Límites
 
