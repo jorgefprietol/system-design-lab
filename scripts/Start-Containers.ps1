@@ -13,7 +13,7 @@ try {
             $taskVolume = "atlas-${taskRuntime}-data"
             docker volume create $taskVolume | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Volume creation failed' }
-            docker run --rm --user 0 --volume "${taskVolume}:/data" --mount "type=bind,source=$taskSeed,target=/seed,readonly" --entrypoint sh $taskImage -c 'if [ -e /data/events.json ]; then echo "Existing history retained"; else cp /seed/events.json /data/events.json && chown 10001:10001 /data/events.json; fi'
+            docker run --rm --user 0 --volume "${taskVolume}:/data" --mount "type=bind,source=$taskSeed,target=/seed,readonly" --entrypoint sh $taskImage -c 'chown 10001:10001 /data; if [ -e /data/events.json ]; then echo "Existing history retained"; else cp /seed/events.json /data/events.json && chown 10001:10001 /data/events.json; fi'
             if ($LASTEXITCODE -ne 0) { throw 'Initial history import failed' }
         }
     }

@@ -18,14 +18,14 @@ Las versiones tienen el mismo contrato HTTP, usan la misma interfaz web y almace
 
 ## Ejecutar en Windows
 
-La ejecución predeterminada utiliza contenedores y el despliegue está preparado para esta laptop. Requisito: Docker Desktop activo.
+La ejecución predeterminada utiliza contenedores. C#: <http://127.0.0.1:5081>; Java: <http://127.0.0.1:5082>. Requisito: Docker Desktop activo.
 
 ```powershell
 cd D:\Cursos\system-design-lab
 .\scripts\Start-Containers.ps1
 ```
 
-Consulta [CI/CD y operación local](docs/ci-cd.md). El pipeline público prueba y publica imágenes por commit; el repositorio privado de operaciones verifica y despliega las imágenes en esta laptop. Los datos se conservan en volúmenes Docker independientes.
+Consulta [CI/CD y operación local](docs/ci-cd.md). El pipeline público prueba y publica imágenes por commit; el repositorio privado de operaciones verifica y despliega las imágenes en esta laptop. Los datos se conservan en volúmenes Docker independientes. El comando de arriba compila para desarrollo; para actualizar esta laptop después de activar CD, utiliza `Laptop CD` según la guía.
 
 ### Alternativa nativa para depurar
 
@@ -47,17 +47,20 @@ Los procesos se ejecutan en segundo plano. Los logs y PID están en `data/logs`.
 
 Desde `csharp`: `dotnet run`. Desde `java`: `mvn package` y `java -jar target/system-design-lab-1.0.0.jar`. En ambos casos la raíz predeterminada es el directorio padre.
 
-Variables opcionales: `LAB_ROOT` (ruta absoluta del proyecto), `LAB_DATA` (directorio de eventos) y `LAB_PORT`. Ambos servidores escuchan en `127.0.0.1`. C# usa ASP.NET Core; Java usa el servidor HTTP del JDK, virtual threads y Jackson, sin framework web adicional.
+Variables opcionales: `LAB_ROOT` (ruta absoluta del proyecto), `LAB_DATA` (directorio de eventos), `LAB_PORT` y `LAB_HOST`. El host predeterminado es `127.0.0.1`; las imágenes usan `0.0.0.0` dentro del contenedor y Docker publica únicamente localhost. C# usa ASP.NET Core; Java usa el servidor HTTP del JDK, virtual threads y Jackson, sin framework web adicional.
 
 ## Verificar
 
 ```powershell
 .\scripts\Test-Lab.ps1
+$env:LAB_TEST_MODE = 'container'
+node tests/contract.mjs
+Remove-Item Env:\LAB_TEST_MODE
 node scripts/benchmark.mjs http://127.0.0.1:5081 500 10
 node scripts/benchmark.mjs http://127.0.0.1:5082 500 10
 ```
 
-La suite arranca procesos aislados en puertos libres y conserva evidencia bajo `tests/results`. Comprueba los siete casos, concurrencia real por HTTP, validación, reinicios y bloqueo de escritor. El benchmark mide throughput y percentiles p50/p95/p99 de lecturas locales.
+`Test-Lab.ps1` verifica los procesos nativos; `LAB_TEST_MODE=container` utiliza las imágenes previamente construidas. Ambas rutas usan puertos y datos aislados y conservan evidencia bajo `tests/results`. La suite comprueba los siete casos, concurrencia real por HTTP, validación, reinicios y bloqueo de escritor. El benchmark mide throughput y percentiles p50/p95/p99 de lecturas locales.
 
 ## Alcance
 

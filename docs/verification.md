@@ -1,6 +1,17 @@
 # Verificación observada · 2 de octubre de 2026
 
-Entorno: Windows, SDK .NET 10.0.401 instalado en `D:/Cursos/.tools/dotnet`, JDK BellSoft 21.0.7, Maven 3.9.10 y Node.js. No se han desplegado servicios cloud.
+Entorno inicial: Windows, SDK .NET 10.0.401 instalado en `D:/Cursos/.tools/dotnet`, JDK BellSoft 21.0.7, Maven 3.9.10 y Node.js. La ejecución actual está en Docker Desktop en esta laptop; GitHub aloja código, CI y releases.
+
+## Contenedores y despliegue desde Actions
+
+- [Container CI 37041168363](https://github.com/jorgefprietol/system-design-lab/actions/runs/37041168363): construcción de ambas imágenes, **38 comprobaciones HTTP aprobadas**, escaneo, SBOM y publicación correctos. [Reporte conservado en el repositorio](evidence/container-contract-report.json).
+- [Release validado](https://github.com/jorgefprietol/system-design-lab/releases/tag/build-ee72959188dcbeb731b018ff2ca13f0c4eeba906), con archivos de imagen, manifiesto y evidencia; [attestation](https://github.com/jorgefprietol/system-design-lab/attestations/52233153).
+- El análisis de esta ejecución registró C#: 5 LOW y 9 MEDIUM; Java: 4 LOW y 38 MEDIUM. **0 HIGH/CRITICAL** en ambas imágenes. El gate bloquea HIGH/CRITICAL con corrección disponible. Esto describe el escaneo de esa fecha, no garantiza ausencia de vulnerabilidades futuras.
+- [Laptop CD 37042177286](https://github.com/jorgefprietol/system-design-lab-deploy/actions/runs/37042177286): ejecución real aprobada en el runner privado Windows. Verificó checksums y procedencia, respaldó datos y cambió ambos contenedores al SHA `ee72959188dcbeb731b018ff2ca13f0c4eeba906`.
+- `/health` de ambos runtimes respondió `up` y el SHA desplegado. Los contenedores están saludables, con usuario 10001 y filesystem de solo lectura.
+- La comparación del estado completo antes/después de migrar a Docker y desplegar desde Actions dio igualdad en ambas implementaciones: C# conserva 3 eventos y Java 1. Los historiales nativos originales permanecen disponibles; los backups se guardan fuera del checkout.
+
+Los enlaces anteriores son evidencia de una ejecución concreta. Nuevos commits generan nuevos releases y despliegues. La suite completa dentro de contenedores pasó en GitHub; el intento local bajo la carga concurrente de otros proyectos agotó su tiempo de arranque y no se cuenta como aprobado.
 
 ## Compilación
 

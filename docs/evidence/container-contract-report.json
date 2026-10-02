@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-02T17:31:45.421Z",
+  "total": 38,
+  "reports": [
+    {
+      "runtime": "csharp",
+      "passed": 19,
+      "checks": [
+        "seven cases start with empty projections",
+        "static UI and assets are served",
+        "URL validation, redirect and cache hits",
+        "chat rooms and plain text survive projection",
+        "idempotent orders reject changed payload",
+        "twenty concurrent buyers cannot oversell five units",
+        "social feed includes followed and own authors only",
+        "taxi selects nearest and keeps busy driver unavailable",
+        "concurrent taxi requests reserve driver once",
+        "crawler queue completes cycles without duplicate visits",
+        "file versions, owner checks and optimistic concurrency",
+        "malformed input returns client errors",
+        "trailing JSON and noncanonical base64 are rejected",
+        "pending crawler jobs recover from journal on startup",
+        "event history has contiguous sequence",
+        "restart replays every projection and preserves idempotency",
+        "data directory refuses simultaneous writers",
+        "event journal on disk is valid JSON",
+        "corrupt journal fails startup without resetting data"
+      ]
+    },
+    {
+      "runtime": "java",
+      "passed": 19,
+      "checks": [
+        "seven cases start with empty projections",
+        "static UI and assets are served",
+        "URL validation, redirect and cache hits",
+        "chat rooms and plain text survive projection",
+        "idempotent orders reject changed payload",
+        "twenty concurrent buyers cannot oversell five units",
+        "social feed includes followed and own authors only",
+        "taxi selects nearest and keeps busy driver unavailable",
+        "concurrent taxi requests reserve driver once",
+        "crawler queue completes cycles without duplicate visits",
+        "file versions, owner checks and optimistic concurrency",
+        "malformed input returns client errors",
+        "trailing JSON and noncanonical base64 are rejected",
+        "pending crawler jobs recover from journal on startup",
+        "event history has contiguous sequence",
+        "restart replays every projection and preserves idempotency",
+        "data directory refuses simultaneous writers",
+        "event journal on disk is valid JSON",
+        "corrupt journal fails startup without resetting data"
+      ]
+    }
+  ]
+}

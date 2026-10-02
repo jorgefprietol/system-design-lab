@@ -36,3 +36,8 @@ services:
 volumes:
   csharp-data: {name: atlas-csharp-data}
   java-data: {name: atlas-java-data}
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.203.75.0/24

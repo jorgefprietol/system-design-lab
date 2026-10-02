@@ -14,6 +14,8 @@ Migración inicial de los datos usados por procesos nativos: `Start-Containers.p
 
 Contenedores con usuario 10001, filesystem de solo lectura, capabilities eliminadas, sin escalada de privilegios, límite de 512 MiB / 1 CPU / 128 procesos, tmpfs de 64 MiB, healthcheck y reinicio `unless-stopped`. No montan el socket Docker ni carpetas del usuario. Datos en volúmenes `atlas-csharp-data` y `atlas-java-data`. Logs rotados hasta 3 archivos de 10 MiB por servicio.
 
+La red de Atlas utiliza `10.203.75.0/24`, comprobada libre en esta laptop. Evita depender de los pools automáticos agotados por otros proyectos. En otro equipo, revisar que esta subred no se solape con sus redes existentes.
+
 ## CI público
 
 `Container CI` corre en `ubuntu-24.04` administrado por GitHub para pushes a main y pull requests. Ninguna tarea del repositorio público utiliza la laptop.
@@ -41,9 +43,19 @@ La instalación es de un nodo con un escritor por historial: hay una interrupci�
 - El runner se conecta hacia GitHub; no requiere abrir puertos entrantes ni exponer el servidor a Internet.
 - El runner se inicia mediante un acceso de inicio de sesión en la carpeta Startup del usuario.
 - Suspender/apagar la laptop detiene disponibilidad y despliegues. Al volver a iniciar sesión, el runner regresa y Docker recupera contenedores cuando el daemon está activo.
-- Detener apps: `docker compose stop`. Reiniciar: `docker compose up -d --no-build --wait`.
+- Después del primer despliegue, detener/reiniciar desde el repositorio privado conservando sus ids de imagen:
+
+  ```powershell
+  cd D:\Cursos\system-design-lab-deploy
+  $atlasEnv = Join-Path $env:LOCALAPPDATA 'Atlas\system-design-lab\current.env'
+  docker compose --env-file $atlasEnv stop
+  docker compose --env-file $atlasEnv up -d --no-build --wait
+  ```
+
 - No usar `down --volumes` si se quiere conservar el historial.
 - Después de habilitar CD, usar Actions para desplegar y rollback. Una compilación manual de desarrollo no es un release validado.
+
+Despliegue manual: `gh workflow run deploy.yml --repo jorgefprietol/system-design-lab-deploy`. Para volver al release anterior validado: agregar `-f rollback=true`. Consultar el resultado en Actions; un job programado puede finalizar sin cambios si todavía no hay un nuevo release validado.
 
 ## Referencias
 
