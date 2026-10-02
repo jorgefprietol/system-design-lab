@@ -32,6 +32,8 @@ Importes en centavos enteros, stock no negativo, cantidades 1–100, referencias
 
 Las APIs validan entradas y usan parámetros SQL. C# limita su pool a 16 conexiones; Java limita a 16 conexiones simultáneas y cierra cada conexión tras la consulta. Hay límites de conexión/consulta. Las credenciales se generan fuera del código, se montan como secretos de solo lectura y no se incluyen en los reportes. PostgreSQL no publica puertos al host.
 
+La imagen PostgreSQL se construye desde una base fijada por digest, actualiza paquetes del sistema y utiliza `su-exec` para iniciar el servidor sin root. Se prueba y analiza junto a C# y Java; el release contiene exactamente los tres archivos de imagen verificados. El despliegue carga esas imágenes y las selecciona por su id inmutable, sin reconstruir la DB en la laptop.
+
 ## Ejecutar y conservar datos
 
 En un clon independiente con Docker Desktop: `scripts/Start-Commerce.ps1`. El overlay `compose.commerce.yaml` añade DB y conecta las dos APIs existentes. Mantiene `atlas-csharp-data` y `atlas-java-data`; crea `atlas-commerce-data` para el almacén compartido. Conserva las claves de `.local/commerce-secrets`: una DB existente no reinicializa automáticamente sus usuarios ni su bootstrap.
@@ -54,4 +56,4 @@ El primario PostgreSQL es una autoridad única y un punto de fallo. Dos APIs no 
 
 - [PostgreSQL: índices únicos y ON CONFLICT](https://www.postgresql.org/docs/current/sql-insert.html).
 - [PostgreSQL: bloqueos de filas y concurrencia](https://www.postgresql.org/docs/current/explicit-locking.html).
-- [Npgsql 10](https://www.npgsql.org/doc/release-notes/10.0.html) y [pgJDBC](https://jdbc.postgresql.org/download/).
+- [Npgsql 10](https://www.npgsql.org/doc/release-notes/10.0.html), [pgJDBC](https://jdbc.postgresql.org/download/) y [su-exec](https://github.com/ncopa/su-exec).

@@ -40,7 +40,7 @@ for (const [index, runtime] of ['csharp','java'].entries()) {
 }
 await writeFile(composePath, JSON.stringify(config, null, 2));
 const compose = args => execute(['compose','--file',composePath,'--project-name',taskProject,...args]);
-const checks = []; let failure, databaseContainer, concurrency;
+const checks = []; let failure, databaseContainer, concurrency, postgresUid;
 async function check(name, test) { await test(); checks.push(name); console.log('PASS horizontal: ' + name); }
 async function request(index, route, body, expected=200) {
   const response = await fetch(bases[index] + '/api/commerce/' + route, {signal:AbortSignal.timeout(15000),...(body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
@@ -66,6 +66,8 @@ try {
     assert.equal(a.schemaVersion,1); assert.equal(b.schemaVersion,1); assert.equal(a.revision,b.revision);
     const expectedBootstrap = createHash('sha256').update(await readFile(resolve(root,'database/init/commerce.sql.in'))).digest('hex');
     assert.equal(a.bootstrapSha256,expectedBootstrap); assert.equal(b.bootstrapSha256,expectedBootstrap);
+    postgresUid = (await execute(['exec',databaseContainer,'sh','-c',"awk '/^Uid:/ {print $2}' /proc/1/status"])).trim();
+    assert.match(postgresUid,/^[0-9]+$/); assert.notEqual(postgresUid,'0');
     assert.deepEqual(await state(0), await state(1));
   });
   await check('both instances serve the shared storefront and assets', async () => {
@@ -145,7 +147,7 @@ try {
 } catch (error) { failure = String(error.stack || error); console.error(error); process.exitCode = 1; }
 finally {
   try { await writeFile(resolve(runRoot,'containers.log'),await compose(['logs','--no-color'])); } catch { /* preserve the original failure */ }
-  await writeFile(resolve(runRoot,'report.json'),JSON.stringify({date:new Date().toISOString(),sourceSha:process.env.GITHUB_SHA || null,postgresImage:config.services['commerce-db'].image,total:checks.length,success:!failure,checks,concurrency,failure},null,2));
+  await writeFile(resolve(runRoot,'report.json'),JSON.stringify({date:new Date().toISOString(),sourceSha:process.env.GITHUB_SHA || null,postgresImage:config.services['commerce-db'].image,postgresUid,total:checks.length,success:!failure,checks,concurrency,failure},null,2));
   try { await compose(['down','--volumes','--remove-orphans','--timeout','5']); } catch (error) { console.error(error); process.exitCode = 1; }
 }
 console.log(`${checks.length} horizontal checks completed. Report: ${runRoot}`);
