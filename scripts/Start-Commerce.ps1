@@ -32,7 +32,7 @@ try {
     foreach ($taskRole in @('app','admin')) {
         $taskVolume = "atlas-commerce-$taskRole-secrets"
         Invoke-TaskDocker @('volume','create',$taskVolume) | Out-Null
-        $taskCheck = "test -f /secrets/$taskRole-password && test ""`$(wc -c < /secrets/$taskRole-password)"" -eq 64 && chmod 0444 /secrets/$taskRole-password"
+        $taskCheck = "test -f /secrets/$taskRole-password && test `$(wc -c < /secrets/$taskRole-password) -eq 64 && chmod 0444 /secrets/$taskRole-password"
         $taskHelper = Invoke-TaskDocker @('create','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--volume',"${taskVolume}:/secrets",'--entrypoint','sh',$taskImage,'-c',$taskCheck)
         if ($taskHelper -notmatch '^[a-f0-9]{64}$') { throw 'Invalid secret loader container id' }
         try {

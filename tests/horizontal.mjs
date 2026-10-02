@@ -79,6 +79,12 @@ try {
     assert.equal(a.bootstrapSha256,expectedBootstrap); assert.equal(b.bootstrapSha256,expectedBootstrap);
     postgresUid = (await execute(['exec',databaseContainer,'sh','-c',"awk '/^Uid:/ {print $2}' /proc/1/status"])).trim();
     assert.match(postgresUid,/^[0-9]+$/); assert.notEqual(postgresUid,'0');
+    for (const runtime of ['csharp','java']) {
+      const container = (await compose(['ps','--quiet',runtime])).trim();
+      await execute(['exec',container,'sh','-c','test -r /run/secrets/app/app-password && test ! -e /run/secrets/admin/admin-password']);
+      const [metadata] = JSON.parse(await execute(['inspect',container]));
+      assert.equal(metadata.Mounts.find(mount=>mount.Destination==='/run/secrets/app').RW,false);
+    }
     assert.deepEqual(await state(0), await state(1));
   });
   await check('both instances serve the shared storefront and assets', async () => {
