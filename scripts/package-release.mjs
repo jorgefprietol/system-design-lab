@@ -16,10 +16,11 @@ for(const runtime of ['csharp','java']){
   const [meta]=JSON.parse(await run(['image','inspect',image]));
   if(meta.Config.Labels['org.opencontainers.image.revision']!==sha||meta.Config.Labels['org.opencontainers.image.source']!==source)throw new Error('Image provenance label mismatch: '+runtime);
   const raw=resolve(dir,`atlas-${runtime}.tar`),file=`atlas-${runtime}.tar.gz`,packed=resolve(dir,file);
-  await run(['save','--output',raw,image]);await pipeline(createReadStream(raw),createGzip({level:6}),createWriteStream(packed));await unlink(raw);
+  const imageRef=`atlas-${runtime}:${sha}`;await run(['tag',image,imageRef]);
+  await run(['save','--output',raw,imageRef]);await pipeline(createReadStream(raw),createGzip({level:6}),createWriteStream(packed));await unlink(raw);
   const hash=createHash('sha256');for await(const chunk of createReadStream(packed))hash.update(chunk);
-  artifacts.push({runtime,file,sha256:hash.digest('hex'),imageId:meta.Id});
+  artifacts.push({runtime,file,sha256:hash.digest('hex'),sourceImageId:meta.Id,imageRef,rootfsSha256:createHash('sha256').update(meta.RootFS.Layers.join('\n')).digest('hex')});
 }
-await writeFile(resolve(dir,'manifest.json'),JSON.stringify({schema:1,source,sourceSha:sha,platform:'linux/amd64',artifacts},null,2));
+await writeFile(resolve(dir,'manifest.json'),JSON.stringify({schema:2,source,sourceSha:sha,platform:'linux/amd64',artifacts},null,2));
 await writeFile(resolve(dir,'SHA256SUMS'),artifacts.map(x=>`${x.sha256}  ${x.file}`).join('\n')+'\n');
 await writeFile(resolve(dir,'notes.md'),`Validated container release for commit ${sha}.\n\nBoth implementations passed the shared HTTP contract suite. Runtime images run without root, include healthchecks, and retain data in independent Docker volumes. SBOM and vulnerability reports are attached.\n\nDeployments are reconciled from the private operations repository on the local laptop.\n`);
