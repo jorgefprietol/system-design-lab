@@ -15,7 +15,7 @@ foreach ($taskFile in @('app-password','admin-password')) {
 $env:ATLAS_SECRET_DIR = $taskSecrets
 Push-Location $taskRoot
 try {
-    if (!$NoBuild) { docker compose build; if ($LASTEXITCODE -ne 0) { throw 'Build failed' } }
+    if (!$NoBuild) { docker compose --file compose.yaml --file compose.commerce.yaml build; if ($LASTEXITCODE -ne 0) { throw 'Build failed' } }
     docker compose --file compose.yaml --file compose.commerce.yaml up --detach --no-build --wait --wait-timeout 240
     if ($LASTEXITCODE -ne 0) { throw 'Commerce startup failed' }
     foreach ($taskPort in @(5081,5082)) { Invoke-RestMethod "http://127.0.0.1:$taskPort/api/commerce/health" }

@@ -11,8 +11,8 @@ const source='https://github.com/jorgefprietol/system-design-lab';
 const dir=resolve('release');await mkdir(dir,{recursive:true});
 const run=(args)=>new Promise((resolve,reject)=>{const p=spawn('docker',args,{stdio:['ignore','pipe','inherit'],windowsHide:true});let out='';p.stdout.on('data',x=>out+=x);p.on('error',reject);p.on('exit',code=>code===0?resolve(out.trim()):reject(new Error('docker exit '+code)));});
 const artifacts=[];
-for(const runtime of ['csharp','java']){
-  const image=process.env[runtime==='csharp'?'CSHARP_IMAGE':'JAVA_IMAGE']||`atlas-${runtime}:local`;
+for(const runtime of ['csharp','java','postgres']){
+  const image=process.env[{csharp:'CSHARP_IMAGE',java:'JAVA_IMAGE',postgres:'COMMERCE_DB_IMAGE'}[runtime]]||`atlas-${runtime}:local`;
   const [meta]=JSON.parse(await run(['image','inspect',image]));
   if(meta.Config.Labels['org.opencontainers.image.revision']!==sha||meta.Config.Labels['org.opencontainers.image.source']!==source)throw new Error('Image provenance label mismatch: '+runtime);
   const raw=resolve(dir,`atlas-${runtime}.tar`),file=`atlas-${runtime}.tar.gz`,packed=resolve(dir,file);
@@ -21,7 +21,7 @@ for(const runtime of ['csharp','java']){
   const hash=createHash('sha256');for await(const chunk of createReadStream(packed))hash.update(chunk);
   artifacts.push({runtime,file,sha256:hash.digest('hex'),sourceImageId:meta.Id,imageRef,rootfsSha256:createHash('sha256').update(meta.RootFS.Layers.join('\n')).digest('hex')});
 }
-const commerce={schema:1,image:(await readFile(resolve(dir,'postgres-image.txt'),'utf8')).trim(),sqlSha256:createHash('sha256').update(await readFile('database/init/commerce.sql.in')).digest('hex'),initializerSha256:createHash('sha256').update(await readFile('database/init/01-commerce.sh')).digest('hex')};
+const commerce={schema:1,image:artifacts.find(x=>x.runtime==='postgres').imageRef,sqlSha256:createHash('sha256').update(await readFile('database/init/commerce.sql.in')).digest('hex'),initializerSha256:createHash('sha256').update(await readFile('database/init/01-commerce.sh')).digest('hex')};
 await writeFile(resolve(dir,'manifest.json'),JSON.stringify({schema:2,source,sourceSha:sha,platform:'linux/amd64',artifacts,commerce},null,2));
 await writeFile(resolve(dir,'SHA256SUMS'),artifacts.map(x=>`${x.sha256}  ${x.file}`).join('\n')+'\n');
 await writeFile(resolve(dir,'notes.md'),`Validated container release for commit ${sha}.\n\nBoth implementations passed the shared HTTP contract suite. Runtime images run without root, include healthchecks, and retain data in independent Docker volumes. SBOM and vulnerability reports are attached.\n\nDeployments are reconciled from the private operations repository on the local laptop.\n`);

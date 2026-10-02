@@ -24,7 +24,11 @@ services:
     healthcheck:
       test: [CMD, curl, --fail, --silent, http://127.0.0.1:8080/api/commerce/health]
   commerce-db:
-    image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: ${COMMERCE_DB_IMAGE:-atlas-postgres:local}
+    build:
+      context: .
+      dockerfile: database/Dockerfile
+      args: {REVISION: "${LAB_REVISION:-development}"}
     restart: unless-stopped
     environment:
       POSTGRES_DB: atlas_commerce
