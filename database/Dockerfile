@@ -5,5 +5,6 @@ RUN apk upgrade --no-cache && apk add --no-cache su-exec \
     && sed -i 's/exec gosu postgres/exec su-exec postgres/g' /usr/local/bin/docker-entrypoint.sh \
     && ! grep -q 'exec gosu' /usr/local/bin/docker-entrypoint.sh
 ARG REVISION=development
+COPY database/init/ /docker-entrypoint-initdb.d/
 LABEL org.opencontainers.image.source="https://github.com/jorgefprietol/system-design-lab" \
       org.opencontainers.image.revision="${REVISION}" org.atlas.commerce.schema="1"

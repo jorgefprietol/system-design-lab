@@ -11,8 +11,8 @@ const runRoot = resolve(root, 'tests/results', 'horizontal-' + new Date().toISOS
 const taskProject = 'atlas-h-test-' + randomBytes(6).toString('hex');
 const secretDir = resolve(runRoot, 'keys');
 await mkdir(secretDir, {recursive:true,mode:0o700});
-// Compose uses read-only file mounts; the host directory is private but container UIDs must read the files.
-for (const file of ['app-password','admin-password']) await writeFile(resolve(secretDir, file), randomBytes(32).toString('hex'), {mode:0o444});
+// Secrets cross the Docker API as files, avoiding dependence on host drive sharing.
+for (const file of ['app-password','admin-password']) await writeFile(resolve(secretDir, file), randomBytes(32).toString('hex'), {mode:0o600});
 function execute(args, input, options={}) {
   return new Promise((done, reject) => {
     const child = spawn('docker', args, {windowsHide:true,cwd:root,env:{...process.env,ATLAS_SECRET_DIR:secretDir},stdio:['pipe','pipe','pipe'],...options});
@@ -56,6 +56,16 @@ async function ready() {
 const state = index => request(index,'state');
 const sql = statement => execute(['exec','--interactive',databaseContainer,'psql','--username','atlas_admin','--dbname','atlas_commerce','--set','ON_ERROR_STOP=1','--tuples-only','--no-align'], statement);
 try {
+  for (const role of ['app','admin']) {
+    const volume = config.volumes[`commerce-${role}-secrets`].name;
+    await execute(['volume','create',volume]);
+    const helper = (await execute(['create','--user','0:0','--network','none','--read-only','--cap-drop','ALL','--cap-add','CHOWN','--security-opt','no-new-privileges:true','--volume',`${volume}:/secrets`,'--entrypoint','sh',config.services['commerce-db'].image,'-c',`test -f /secrets/${role}-password && chown 0:0 /secrets/${role}-password && chmod 0444 /secrets/${role}-password && test "$(wc -c < /secrets/${role}-password)" -eq 64`])).trim();
+    assert.match(helper,/^[a-f0-9]{64}$/);
+    try {
+      await execute(['cp',resolve(secretDir,`${role}-password`),`${helper}:/secrets/${role}-password`]);
+      await execute(['start','--attach',helper]);
+    } finally { await execute(['rm','--force',helper]); }
+  }
   await compose(['up','--detach','--no-build','--wait','--wait-timeout','300']);
   databaseContainer = (await compose(['ps','--quiet','commerce-db'])).trim();
   assert.match(databaseContainer, /^[a-f0-9]{12,64}$/);
@@ -69,6 +79,12 @@ try {
     assert.equal(a.bootstrapSha256,expectedBootstrap); assert.equal(b.bootstrapSha256,expectedBootstrap);
     postgresUid = (await execute(['exec',databaseContainer,'sh','-c',"awk '/^Uid:/ {print $2}' /proc/1/status"])).trim();
     assert.match(postgresUid,/^[0-9]+$/); assert.notEqual(postgresUid,'0');
+    for (const runtime of ['csharp','java']) {
+      const container = (await compose(['ps','--quiet',runtime])).trim();
+      await execute(['exec',container,'sh','-c','test -r /run/secrets/app/app-password && test ! -e /run/secrets/admin/admin-password']);
+      const [metadata] = JSON.parse(await execute(['inspect',container]));
+      assert.equal(metadata.Mounts.find(mount=>mount.Destination==='/run/secrets/app').RW,false);
+    }
     assert.deepEqual(await state(0), await state(1));
   });
   await check('both instances serve the shared storefront and assets', async () => {
@@ -119,7 +135,7 @@ try {
     assert.equal(recovered.quantity,1); assert.equal(recovered.totalCents,6500);
   });
   await check('the API database role cannot update inventory directly', async () => {
-    await assert.rejects(execute(['exec',databaseContainer,'sh','-c','PGPASSWORD="$(cat /run/secrets/commerce_app_password)" psql -h 127.0.0.1 -U atlas_app -d atlas_commerce -v ON_ERROR_STOP=1 -c "UPDATE shop.products SET stock=999"']), /permission denied/);
+    await assert.rejects(execute(['exec',databaseContainer,'sh','-c','PGPASSWORD="$(cat /run/secrets/app/app-password)" psql -h 127.0.0.1 -U atlas_app -d atlas_commerce -v ON_ERROR_STOP=1 -c "UPDATE shop.products SET stock=999"']), /permission denied/);
   });
   await check('one API can continue ordering while the other instance is stopped', async () => {
     await compose(['stop','--timeout','5','csharp']);
