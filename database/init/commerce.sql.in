@@ -1,0 +1,87 @@
+-- Immutable bootstrap version 1. Future schema changes require a reviewed migration.
+BEGIN;
+CREATE ROLE atlas_app LOGIN PASSWORD :'app_password';
+CREATE SCHEMA shop;
+CREATE TABLE shop.schema_version (version integer PRIMARY KEY CHECK (version = 1), bootstrap_sha256 text NOT NULL CHECK (bootstrap_sha256 ~ '^[a-f0-9]{64}$'));
+INSERT INTO shop.schema_version VALUES (1, :'bootstrap_sha');
+CREATE TABLE shop.products (
+    id text PRIMARY KEY,
+    name text NOT NULL,
+    price_cents integer NOT NULL CHECK (price_cents BETWEEN 1 AND 1000000),
+    stock integer NOT NULL CHECK (stock >= 0)
+);
+CREATE TABLE shop.idempotency_keys (
+    key text PRIMARY KEY CHECK (length(key) BETWEEN 1 AND 100),
+    product text NOT NULL,
+    quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 100)
+);
+CREATE TABLE shop.orders (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    key text NOT NULL UNIQUE REFERENCES shop.idempotency_keys(key),
+    product text NOT NULL REFERENCES shop.products(id),
+    quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 100),
+    unit_price_cents integer NOT NULL CHECK (unit_price_cents > 0),
+    total_cents bigint NOT NULL CHECK (total_cents = quantity::bigint * unit_price_cents),
+    placed_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+INSERT INTO shop.products VALUES
+    ('book', 'Arquitectura de sistemas', 2500, 5),
+    ('keyboard', 'Teclado mecánico', 6500, 8);
+
+CREATE FUNCTION shop.receipt(o shop.orders) RETURNS jsonb
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, shop AS $$
+    SELECT jsonb_build_object('id', replace((o).id::text, '-', ''), 'key', (o).key,
+        'product', (o).product, 'quantity', (o).quantity, 'totalCents', (o).total_cents);
+$$;
+
+CREATE FUNCTION shop.place_order(p_key text, p_product text, p_quantity integer) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, shop AS $$
+DECLARE
+    inserted_key text;
+    existing_request shop.idempotency_keys;
+    completed_order shop.orders;
+    price integer;
+BEGIN
+    IF p_key IS NULL OR length(btrim(p_key)) NOT BETWEEN 1 AND 100 OR p_key <> btrim(p_key) THEN
+        RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'invalid_key';
+    END IF;
+    IF p_product IS NULL OR length(btrim(p_product)) NOT BETWEEN 1 AND 100 OR p_product <> btrim(p_product) THEN
+        RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'invalid_product';
+    END IF;
+    IF p_quantity IS NULL OR p_quantity NOT BETWEEN 1 AND 100 THEN
+        RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'invalid_quantity';
+    END IF;
+    -- Unique key acquisition waits for a concurrent owner to commit or roll back.
+    INSERT INTO shop.idempotency_keys(key, product, quantity)
+        VALUES (p_key, p_product, p_quantity) ON CONFLICT DO NOTHING RETURNING key INTO inserted_key;
+    IF inserted_key IS NULL THEN
+        SELECT * INTO STRICT existing_request FROM shop.idempotency_keys WHERE key = p_key;
+        IF existing_request.product <> p_product OR existing_request.quantity <> p_quantity THEN
+            RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'idempotency_conflict';
+        END IF;
+        SELECT * INTO STRICT completed_order FROM shop.orders WHERE key = p_key;
+        RETURN shop.receipt(completed_order);
+    END IF;
+    -- The conditional UPDATE takes the product row lock and rechecks the predicate.
+    UPDATE shop.products SET stock = stock - p_quantity
+        WHERE id = p_product AND stock >= p_quantity RETURNING price_cents INTO price;
+    IF NOT FOUND THEN
+        IF EXISTS (SELECT 1 FROM shop.products WHERE id = p_product) THEN
+            RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'out_of_stock';
+        END IF;
+        RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'product_not_found';
+    END IF;
+    INSERT INTO shop.orders(key, product, quantity, unit_price_cents, total_cents)
+        VALUES (p_key, p_product, p_quantity, price, p_quantity::bigint * price)
+        RETURNING * INTO completed_order;
+    RETURN shop.receipt(completed_order);
+END;
+$$;
+REVOKE ALL ON FUNCTION shop.receipt(shop.orders) FROM PUBLIC;
+REVOKE ALL ON FUNCTION shop.place_order(text, text, integer) FROM PUBLIC;
+GRANT CONNECT ON DATABASE atlas_commerce TO atlas_app;
+GRANT USAGE ON SCHEMA shop TO atlas_app;
+GRANT SELECT ON ALL TABLES IN SCHEMA shop TO atlas_app;
+GRANT EXECUTE ON FUNCTION shop.receipt(shop.orders) TO atlas_app;
+GRANT EXECUTE ON FUNCTION shop.place_order(text, text, integer) TO atlas_app;
+COMMIT;

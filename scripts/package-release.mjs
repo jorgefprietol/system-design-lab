@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
 import {createReadStream,createWriteStream} from 'node:fs';
-import {mkdir,writeFile,unlink} from 'node:fs/promises';
+import {mkdir,writeFile,unlink,readFile} from 'node:fs/promises';
 import {pipeline} from 'node:stream/promises';
 import {createGzip} from 'node:zlib';
 import {createHash} from 'node:crypto';
@@ -21,6 +21,7 @@ for(const runtime of ['csharp','java']){
   const hash=createHash('sha256');for await(const chunk of createReadStream(packed))hash.update(chunk);
   artifacts.push({runtime,file,sha256:hash.digest('hex'),sourceImageId:meta.Id,imageRef,rootfsSha256:createHash('sha256').update(meta.RootFS.Layers.join('\n')).digest('hex')});
 }
-await writeFile(resolve(dir,'manifest.json'),JSON.stringify({schema:2,source,sourceSha:sha,platform:'linux/amd64',artifacts},null,2));
+const commerce={schema:1,image:(await readFile(resolve(dir,'postgres-image.txt'),'utf8')).trim(),sqlSha256:createHash('sha256').update(await readFile('database/init/commerce.sql.in')).digest('hex'),initializerSha256:createHash('sha256').update(await readFile('database/init/01-commerce.sh')).digest('hex')};
+await writeFile(resolve(dir,'manifest.json'),JSON.stringify({schema:2,source,sourceSha:sha,platform:'linux/amd64',artifacts,commerce},null,2));
 await writeFile(resolve(dir,'SHA256SUMS'),artifacts.map(x=>`${x.sha256}  ${x.file}`).join('\n')+'\n');
 await writeFile(resolve(dir,'notes.md'),`Validated container release for commit ${sha}.\n\nBoth implementations passed the shared HTTP contract suite. Runtime images run without root, include healthchecks, and retain data in independent Docker volumes. SBOM and vulnerability reports are attached.\n\nDeployments are reconciled from the private operations repository on the local laptop.\n`);

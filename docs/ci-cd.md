@@ -23,9 +23,10 @@ La red de Atlas utiliza `10.203.75.0/24`, comprobada libre en esta laptop. Evita
 1. Validar sintaxis de frontend y Compose.
 2. Construir C# y Java desde imágenes base fijadas por digest.
 3. Ejecutar la suite compartida HTTP contra contenedores con datos aislados.
+   Además, comprobar compras y reintentos entre dos instancias contra PostgreSQL, parada de una API y caída/reinicio de la base.
 4. Generar SBOM CycloneDX y reporte de vulnerabilidades. Bloquear HIGH/CRITICAL con corrección disponible; las vulnerabilidades sin fix también se registran en el reporte completo.
 5. Para main, empaquetar las imágenes ya probadas en archivos Docker comprimidos y manifiesto con SHA del commit, ids de imagen y checksums.
-6. Generar attestations de procedencia con identidad OIDC de GitHub y publicar un release `build-<sha completo>` con evidencia.
+6. Generar attestations de procedencia para imágenes, manifiesto y evidencia con identidad OIDC de GitHub y publicar un release `build-<sha completo>`. El manifiesto incluye hashes del bootstrap de compras y la imagen PostgreSQL verificada.
 
 Actions y herramientas críticas se fijan por digest/SHA. Dependabot propone actualizaciones de Actions, Docker y Maven. Solo el job de publicación tiene permisos de escritura de contenido, identidad OIDC y attestations. Los PR no publican releases.
 
@@ -36,6 +37,8 @@ Un runner Windows de este equipo ejecuta el workflow privado `Laptop CD`. Consul
 El pipeline privado valida CI, release, SHA-256, attestations, identidad de las imágenes y usuario no root. Solo usa su propio Compose y scripts de operación confiables. Detiene escrituras, crea respaldos locales, recrea las dos apps por id inmutable y comprueba estado e interfaz por HTTP. Ante un fallo vuelve a las imágenes anteriores. No revierte eventos automáticamente: una restauración de datos requiere revisar qué escrituras se perderían.
 
 La instalación es de un nodo con un escritor por historial: hay una interrupción breve durante el cambio de versión. `previous.json` permite solicitar el release anterior. El estado y los backups están bajo `%LOCALAPPDATA%/Atlas/system-design-lab`, fuera del checkout del runner.
+
+La opción `commerce: enable` de `Laptop CD` añade la base compartida a las dos APIs existentes. Esta elección se conserva en el estado del despliegue. El controlador usa su propio overlay/bootstrap aprobado, verifica la procedencia del manifiesto y compara hashes e imagen DB antes de activar el caso. Al actualizar una tienda activa, detiene las APIs, respalda historiales y crea un `pg_dump` antes de recrearlas. El rollback recupera la configuración del despliegue anterior y mantiene el volumen de DB; no rebobina pedidos. `commerce: disable` vuelve a la configuración básica conservando la DB en su volumen.
 
 ## Operación diaria
 
@@ -48,8 +51,11 @@ La instalación es de un nodo con un escritor por historial: hay una interrupci�
   ```powershell
   cd D:\Cursos\system-design-lab-deploy
   $atlasEnv = Join-Path $env:LOCALAPPDATA 'Atlas\system-design-lab\current.env'
-  docker compose --env-file $atlasEnv stop
-  docker compose --env-file $atlasEnv up -d --no-build --wait
+  $atlasState = Get-Content (Join-Path $env:LOCALAPPDATA 'Atlas\system-design-lab\current.json') -Raw | ConvertFrom-Json
+  $atlasCompose = @('compose','--env-file',$atlasEnv,'--file','compose.yaml')
+  if ($atlasState.commerceEnabled) { $atlasCompose += @('--file','compose.commerce.yaml') }
+  docker @atlasCompose stop
+  docker @atlasCompose up -d --no-build --wait
   ```
 
 - No usar `down --volumes` si se quiere conservar el historial.

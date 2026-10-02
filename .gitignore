@@ -13,3 +13,4 @@ release/
 .credentials*
 _diag/
 _work/
+.local/

@@ -14,7 +14,7 @@ COPY --from=build /src/target/system-design-lab-1.0.0.jar ./lab.jar
 COPY web/ ./web/
 ARG REVISION=development
 LABEL org.opencontainers.image.source="https://github.com/jorgefprietol/system-design-lab" \
-      org.opencontainers.image.revision="${REVISION}"
+      org.opencontainers.image.revision="${REVISION}" org.atlas.commerce.schema="1"
 ENV LAB_ROOT=/app LAB_DATA=/data LAB_HOST=0.0.0.0 LAB_PORT=8080 LAB_REVISION=${REVISION}
 USER 10001:10001
 EXPOSE 8080

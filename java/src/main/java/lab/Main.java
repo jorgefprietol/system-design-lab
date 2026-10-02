@@ -12,32 +12,38 @@ public final class Main {
     public static void main(String[] args) throws Exception {
         Path root = Path.of(System.getenv().getOrDefault("LAB_ROOT", "..")).toAbsolutePath();
         Lab lab = new Lab(Path.of(System.getenv().getOrDefault("LAB_DATA", root.resolve("data/java").toString())));
+        Commerce commerce = new Commerce();
         int port = Integer.parseInt(System.getenv().getOrDefault("LAB_PORT", "5082"));
         HttpServer server = HttpServer.create(new InetSocketAddress(System.getenv().getOrDefault("LAB_HOST", "127.0.0.1"), port), 64);
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor(); server.setExecutor(executor);
         ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
         worker.scheduleWithFixedDelay(() -> { try { lab.runNext(); } catch (Exception e) { System.err.println("Worker failed; job retained: " + e); } }, 1, 1, TimeUnit.SECONDS);
-        server.createContext("/", exchange -> handle(exchange, lab, root));
+        server.createContext("/", exchange -> handle(exchange, lab, commerce, root));
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { server.stop(1); worker.shutdownNow(); executor.shutdownNow(); try { lab.close(); } catch (IOException e) { System.err.println(e); } }));
         server.start(); System.out.println("Java System Design Lab: http://127.0.0.1:" + port);
     }
-    private static void handle(HttpExchange ex, Lab lab, Path root) throws IOException {
+    private static void handle(HttpExchange ex, Lab lab, Commerce commerce, Path root) throws IOException {
         try {
             ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
             ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'");
             String path = ex.getRequestURI().getPath(), method = ex.getRequestMethod();
+            if (path.startsWith("/api/commerce/")) ex.getResponseHeaders().set("X-Lab-Instance", System.getenv().getOrDefault("LAB_INSTANCE", "java"));
             if (method.equals("POST") && path.startsWith("/api/")) {
                 byte[] body = ex.getRequestBody().readNBytes(131073);
                 if (body.length > 131072) throw new Lab.RuleError(413, "invalid_request");
                 var parsed = Lab.JSON.readTree(body);
                 if (!(parsed instanceof ObjectNode request)) throw new Lab.RuleError(400, "invalid_json");
-                send(ex, 200, lab.command(path.substring(5), request)); return;
+                send(ex, 200, path.equals("/api/commerce/orders") ? commerce.order(request) : lab.command(path.substring(5), request)); return;
             }
             if (!method.equals("GET")) throw new Lab.RuleError(405, "method_not_allowed");
             switch (path) {
                 case "/": staticFile(ex, root.resolve("web/index.html"), "text/html; charset=utf-8"); return;
                 case "/app.js": staticFile(ex, root.resolve("web/app.js"), "text/javascript; charset=utf-8"); return;
                 case "/style.css": staticFile(ex, root.resolve("web/style.css"), "text/css; charset=utf-8"); return;
+                case "/commerce": staticFile(ex, root.resolve("web/commerce.html"), "text/html; charset=utf-8"); return;
+                case "/commerce.js": staticFile(ex, root.resolve("web/commerce.js"), "text/javascript; charset=utf-8"); return;
+                case "/api/commerce/health": send(ex, 200, commerce.health()); return;
+                case "/api/commerce/state": send(ex, 200, commerce.state()); return;
                 case "/health": send(ex, 200, Lab.obj("status", "up", "implementation", "java", "revision", System.getenv().getOrDefault("LAB_REVISION", "development"))); return;
                 case "/api/state": send(ex, 200, lab.state()); return;
                 case "/api/events": send(ex, 200, lab.history()); return;
