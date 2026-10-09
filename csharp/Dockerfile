@@ -6,7 +6,7 @@ RUN dotnet restore csharp/SystemDesignLab.csproj
 COPY csharp/ csharp/
 RUN dotnet publish csharp/SystemDesignLab.csproj -c Release --no-restore -o /out
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:57460add89e2b3dd1950c41d8b7dc96eeb7a24d13d98e3656ce9997a8b746bd6
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:222759b391a1aaf241166672c8f99b2d4ada452e7b5319f3c6e8f265a37b5ad4
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 lab && useradd --uid 10001 --gid lab --no-create-home lab \
     && mkdir /data && chown lab:lab /data
