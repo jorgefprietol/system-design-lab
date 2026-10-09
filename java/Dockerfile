@@ -5,7 +5,7 @@ RUN mvn -B -q dependency:go-offline
 COPY java/src/ src/
 RUN mvn -B -q package
 
-FROM eclipse-temurin:21-jre@sha256:cff19e6215689161eb6162c11b86b0c60ddf802164f2eaf48d570f8fb79a36c5
+FROM eclipse-temurin:25-jre@sha256:fcd7fd7b387f94bb2ac461478a7436ad8e349924c374ea8313919624dceae636
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 lab && useradd --uid 10001 --gid lab --no-create-home lab \
     && mkdir /data && chown lab:lab /data
